@@ -37,7 +37,7 @@ final class Utils {
   }
 
   static Class<?> getRawType(Type type) {
-    if (type == null) throw new NullPointerException("type == null");
+    checkNotNull(type, "type == null");
 
     if (type instanceof Class<?>) {
       // Type is a normal class.
@@ -376,14 +376,14 @@ final class Utils {
         throw new IllegalArgumentException();
       }
 
-      this.ownerType = ownerType;
-      this.rawType = rawType;
-      this.typeArguments = typeArguments.clone();
-
-      for (Type typeArgument : this.typeArguments) {
+      for (Type typeArgument : typeArguments) {
         checkNotNull(typeArgument, "typeArgument == null");
         checkNotPrimitive(typeArgument);
       }
+
+      this.ownerType = ownerType;
+      this.rawType = rawType;
+      this.typeArguments = typeArguments.clone();
     }
 
     @Override public Type[] getActualTypeArguments() {
