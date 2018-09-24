@@ -21,7 +21,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -63,6 +65,7 @@ final class RequestFactory {
     return new Builder(retrofit, method).build();
   }
 
+  private final Method method;
   private final HttpUrl baseUrl;
   final String httpMethod;
   private final String relativeUrl;
@@ -74,6 +77,7 @@ final class RequestFactory {
   private final ParameterHandler<?>[] parameterHandlers;
 
   RequestFactory(Builder builder) {
+    method = builder.method;
     baseUrl = builder.retrofit.baseUrl;
     httpMethod = builder.httpMethod;
     relativeUrl = builder.relativeUrl;
@@ -86,9 +90,6 @@ final class RequestFactory {
   }
 
   okhttp3.Request create(Object[] args) throws IOException {
-    RequestBuilder requestBuilder = new RequestBuilder(httpMethod, baseUrl, relativeUrl, headers,
-        contentType, hasBody, isFormEncoded, isMultipart);
-
     @SuppressWarnings("unchecked") // It is an error to invoke a method with the wrong arg types.
     ParameterHandler<Object>[] handlers = (ParameterHandler<Object>[]) parameterHandlers;
 
@@ -98,11 +99,18 @@ final class RequestFactory {
           + ") doesn't match expected count (" + handlers.length + ")");
     }
 
+    RequestBuilder requestBuilder = new RequestBuilder(httpMethod, baseUrl, relativeUrl,
+        headers, contentType, hasBody, isFormEncoded, isMultipart);
+
+    List<Object> argumentList = new ArrayList<>(argumentCount);
     for (int p = 0; p < argumentCount; p++) {
+      argumentList.add(args[p]);
       handlers[p].apply(requestBuilder, args[p]);
     }
 
-    return requestBuilder.build();
+    return requestBuilder.get()
+        .tag(Invocation.class, new Invocation(method, argumentList))
+        .build();
   }
 
   /**
