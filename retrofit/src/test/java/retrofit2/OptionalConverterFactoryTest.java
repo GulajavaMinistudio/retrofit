@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package retrofit.converter.java8;
+package retrofit2;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -26,14 +26,11 @@ import okhttp3.mockwebserver.MockWebServer;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import retrofit2.Call;
-import retrofit2.Converter;
-import retrofit2.Retrofit;
 import retrofit2.http.GET;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public final class Java8OptionalConverterFactoryTest {
+public final class OptionalConverterFactoryTest {
   interface Service {
     @GET("/") Call<Optional<Object>> optional();
     @GET("/") Call<Object> object();
@@ -46,8 +43,7 @@ public final class Java8OptionalConverterFactoryTest {
   @Before public void setUp() {
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(server.url("/"))
-        .addConverterFactory(Java8OptionalConverterFactory.create())
-        .addConverterFactory(new AlwaysNullConverterFactory())
+        .addConverterFactory(new ObjectToNullConverterFactory())
         .build();
     service = retrofit.create(Service.class);
   }
@@ -67,30 +63,17 @@ public final class Java8OptionalConverterFactoryTest {
     assertThat(body).isNull();
   }
 
-  @Test public void delegates() throws IOException {
-    Retrofit retrofit = new Retrofit.Builder()
-        .baseUrl(server.url("/"))
-        .addConverterFactory(new Converter.Factory() {
-          @Nullable @Override public Converter<ResponseBody, ?> responseBodyConverter(Type type,
-              Annotation[] annotations, Retrofit retrofit) {
-            if (getRawType(type) != Object.class) {
-              return null;
-            }
-            return new Converter<ResponseBody, Object>() {
-              @Override public Object convert(ResponseBody value) {
-                return null;
-              }
-            };
-          }
-        })
-        .addConverterFactory(Java8OptionalConverterFactory.create())
-        .build();
-
-    server.enqueue(new MockResponse());
-
-    Service service = retrofit.create(Service.class);
-    Optional<Object> optional = service.optional().execute().body();
-    assertThat(optional).isNotNull();
-    assertThat(optional.isPresent()).isFalse();
+  static final class ObjectToNullConverterFactory extends Converter.Factory {
+    @Override public @Nullable Converter<ResponseBody, ?> responseBodyConverter(
+        Type type, Annotation[] annotations, Retrofit retrofit) {
+      if (type != Object.class) {
+        return null;
+      }
+      return new Converter<ResponseBody, Object>() {
+        @Override public Object convert(ResponseBody value) {
+          return null;
+        }
+      };
+    }
   }
 }
