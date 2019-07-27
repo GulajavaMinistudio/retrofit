@@ -22,9 +22,13 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.net.URL;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
@@ -38,7 +42,6 @@ import retrofit2.http.Header;
 import retrofit2.http.Url;
 
 import static java.util.Collections.unmodifiableList;
-import static retrofit2.Utils.checkNotNull;
 
 /**
  * Retrofit adapts a Java interface to HTTP calls by using annotations on the declared methods to
@@ -128,10 +131,7 @@ public final class Retrofit {
    */
   @SuppressWarnings("unchecked") // Single-interface proxy creation guarded by parameter safety.
   public <T> T create(final Class<T> service) {
-    Utils.validateServiceInterface(service);
-    if (validateEagerly) {
-      eagerlyValidateMethods(service);
-    }
+    validateServiceInterface(service);
     return (T) Proxy.newProxyInstance(service.getClassLoader(), new Class<?>[] { service },
         new InvocationHandler() {
           private final Platform platform = Platform.get();
@@ -151,11 +151,33 @@ public final class Retrofit {
         });
   }
 
-  private void eagerlyValidateMethods(Class<?> service) {
-    Platform platform = Platform.get();
-    for (Method method : service.getDeclaredMethods()) {
-      if (!platform.isDefaultMethod(method) && !Modifier.isStatic(method.getModifiers())) {
-        loadServiceMethod(method);
+  private void validateServiceInterface(Class<?> service) {
+    if (!service.isInterface()) {
+      throw new IllegalArgumentException("API declarations must be interfaces.");
+    }
+
+    Deque<Class<?>> check = new ArrayDeque<>(1);
+    check.add(service);
+    while (!check.isEmpty()) {
+      Class<?> candidate = check.removeFirst();
+      if (candidate.getTypeParameters().length != 0) {
+        StringBuilder message = new StringBuilder("Type parameters are unsupported on ")
+            .append(candidate.getName());
+        if (candidate != service) {
+          message.append(" which is an interface of ")
+              .append(service.getName());
+        }
+        throw new IllegalArgumentException(message.toString());
+      }
+      Collections.addAll(check, candidate.getInterfaces());
+    }
+
+    if (validateEagerly) {
+      Platform platform = Platform.get();
+      for (Method method : service.getDeclaredMethods()) {
+        if (!platform.isDefaultMethod(method) && !Modifier.isStatic(method.getModifiers())) {
+          loadServiceMethod(method);
+        }
       }
     }
   }
@@ -213,8 +235,8 @@ public final class Retrofit {
    */
   public CallAdapter<?, ?> nextCallAdapter(@Nullable CallAdapter.Factory skipPast, Type returnType,
       Annotation[] annotations) {
-    checkNotNull(returnType, "returnType == null");
-    checkNotNull(annotations, "annotations == null");
+    Objects.requireNonNull(returnType, "returnType == null");
+    Objects.requireNonNull(annotations, "annotations == null");
 
     int start = callAdapterFactories.indexOf(skipPast) + 1;
     for (int i = start, count = callAdapterFactories.size(); i < count; i++) {
@@ -271,9 +293,9 @@ public final class Retrofit {
   public <T> Converter<T, RequestBody> nextRequestBodyConverter(
       @Nullable Converter.Factory skipPast, Type type, Annotation[] parameterAnnotations,
       Annotation[] methodAnnotations) {
-    checkNotNull(type, "type == null");
-    checkNotNull(parameterAnnotations, "parameterAnnotations == null");
-    checkNotNull(methodAnnotations, "methodAnnotations == null");
+    Objects.requireNonNull(type, "type == null");
+    Objects.requireNonNull(parameterAnnotations, "parameterAnnotations == null");
+    Objects.requireNonNull(methodAnnotations, "methodAnnotations == null");
 
     int start = converterFactories.indexOf(skipPast) + 1;
     for (int i = start, count = converterFactories.size(); i < count; i++) {
@@ -321,8 +343,8 @@ public final class Retrofit {
    */
   public <T> Converter<ResponseBody, T> nextResponseBodyConverter(
       @Nullable Converter.Factory skipPast, Type type, Annotation[] annotations) {
-    checkNotNull(type, "type == null");
-    checkNotNull(annotations, "annotations == null");
+    Objects.requireNonNull(type, "type == null");
+    Objects.requireNonNull(annotations, "annotations == null");
 
     int start = converterFactories.indexOf(skipPast) + 1;
     for (int i = start, count = converterFactories.size(); i < count; i++) {
@@ -356,8 +378,8 @@ public final class Retrofit {
    * {@linkplain #converterFactories() factories}.
    */
   public <T> Converter<T, String> stringConverter(Type type, Annotation[] annotations) {
-    checkNotNull(type, "type == null");
-    checkNotNull(annotations, "annotations == null");
+    Objects.requireNonNull(type, "type == null");
+    Objects.requireNonNull(annotations, "annotations == null");
 
     for (int i = 0, count = converterFactories.size(); i < count; i++) {
       Converter<?, String> converter =
@@ -437,7 +459,7 @@ public final class Retrofit {
      * This is a convenience method for calling {@link #callFactory}.
      */
     public Builder client(OkHttpClient client) {
-      return callFactory(checkNotNull(client, "client == null"));
+      return callFactory(Objects.requireNonNull(client, "client == null"));
     }
 
     /**
@@ -446,7 +468,7 @@ public final class Retrofit {
      * Note: Calling {@link #client} automatically sets this value.
      */
     public Builder callFactory(okhttp3.Call.Factory factory) {
-      this.callFactory = checkNotNull(factory, "factory == null");
+      this.callFactory = Objects.requireNonNull(factory, "factory == null");
       return this;
     }
 
@@ -456,7 +478,7 @@ public final class Retrofit {
      * @see #baseUrl(HttpUrl)
      */
     public Builder baseUrl(URL baseUrl) {
-      checkNotNull(baseUrl, "baseUrl == null");
+      Objects.requireNonNull(baseUrl, "baseUrl == null");
       return baseUrl(HttpUrl.get(baseUrl.toString()));
     }
 
@@ -466,7 +488,7 @@ public final class Retrofit {
      * @see #baseUrl(HttpUrl)
      */
     public Builder baseUrl(String baseUrl) {
-      checkNotNull(baseUrl, "baseUrl == null");
+      Objects.requireNonNull(baseUrl, "baseUrl == null");
       return baseUrl(HttpUrl.get(baseUrl));
     }
 
@@ -521,7 +543,7 @@ public final class Retrofit {
      * Result: http://github.com/square/retrofit/ (note the scheme stays 'http')
      */
     public Builder baseUrl(HttpUrl baseUrl) {
-      checkNotNull(baseUrl, "baseUrl == null");
+      Objects.requireNonNull(baseUrl, "baseUrl == null");
       List<String> pathSegments = baseUrl.pathSegments();
       if (!"".equals(pathSegments.get(pathSegments.size() - 1))) {
         throw new IllegalArgumentException("baseUrl must end in /: " + baseUrl);
@@ -532,7 +554,7 @@ public final class Retrofit {
 
     /** Add converter factory for serialization and deserialization of objects. */
     public Builder addConverterFactory(Converter.Factory factory) {
-      converterFactories.add(checkNotNull(factory, "factory == null"));
+      converterFactories.add(Objects.requireNonNull(factory, "factory == null"));
       return this;
     }
 
@@ -541,7 +563,7 @@ public final class Retrofit {
      * Call}.
      */
     public Builder addCallAdapterFactory(CallAdapter.Factory factory) {
-      callAdapterFactories.add(checkNotNull(factory, "factory == null"));
+      callAdapterFactories.add(Objects.requireNonNull(factory, "factory == null"));
       return this;
     }
 
@@ -553,7 +575,7 @@ public final class Retrofit {
      * return types}.
      */
     public Builder callbackExecutor(Executor executor) {
-      this.callbackExecutor = checkNotNull(executor, "executor == null");
+      this.callbackExecutor = Objects.requireNonNull(executor, "executor == null");
       return this;
     }
 
